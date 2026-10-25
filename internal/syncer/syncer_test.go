@@ -256,3 +256,19 @@ func TestAuthorNames(t *testing.T) {
 		}
 	}
 }
+
+// A kobo_dir pointing outside the Kobo must not write there.
+func TestKoboDirOutsideMount(t *testing.T) {
+	libDir, dev := setup(t)
+	entries := scan(t, libDir, dev)
+	d := find(entries, "Dune")
+	d.Want = true
+	var got error
+	must(t, syncer.Apply(context.Background(), dev, "../../escape", []*syncer.Entry{d}, func(e syncer.Event) { got = e.Err }))
+	if got == nil || !strings.Contains(got.Error(), "outside the Kobo") {
+		t.Errorf("expected an outside error, got %v", got)
+	}
+	if matches, _ := filepath.Glob(filepath.Join(filepath.Dir(filepath.Dir(dev.Mount)), "escape*")); len(matches) > 0 {
+		t.Errorf("wrote outside the Kobo: %v", matches)
+	}
+}

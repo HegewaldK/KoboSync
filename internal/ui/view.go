@@ -12,6 +12,7 @@ import (
 	"kobosync/internal/i18n"
 	"kobosync/internal/kobo"
 	"kobosync/internal/library"
+	"kobosync/internal/safe"
 	"kobosync/internal/syncer"
 )
 
@@ -428,7 +429,7 @@ func (m Model) detailsPanel(w, h int) string {
 		if len(e.Lib.Formats) > 1 {
 			field("formats", e.Lib.AllFormats(), textStyle)
 		}
-		field("file", e.Lib.Rel, subStyle)
+		field("file", safe.Text(e.Lib.Rel), subStyle)
 	}
 
 	lines = append(lines, "")
@@ -449,10 +450,10 @@ func (m Model) detailsPanel(w, h int) string {
 	}
 	if e.Kobo != nil {
 		field("on_kobo", e.Kobo.Format()+" · "+m.loc.Bytes(uint64(e.Kobo.Size)), textStyle)
-		field("kobo_file", e.Kobo.Rel, subStyle)
+		field("kobo_file", safe.Text(e.Kobo.Rel), subStyle)
 	}
 	if b.Err != "" {
-		lines = append(lines, " "+errStyle.Render(m.loc.F("detail.metadata_error", b.Err)))
+		lines = append(lines, " "+errStyle.Render(m.loc.F("detail.metadata_error", safe.Text(b.Err))))
 	}
 
 	if b.Meta.Description != "" && len(lines) < h-4 {
@@ -487,7 +488,7 @@ func (m Model) placeholder(w, rows int, loading bool) []string {
 func (m Model) statusBar() string {
 	var left string
 	if m.dev != nil {
-		info := shortPath(m.dev.Mount)
+		info := safe.Text(shortPath(m.dev.Mount))
 		if m.dev.Firmware != "" {
 			info = m.loc.F("bar.firmware", m.dev.Firmware) + " · " + info
 		}

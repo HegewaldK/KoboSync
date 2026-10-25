@@ -20,6 +20,7 @@ import (
 	"kobosync/internal/i18n"
 	"kobosync/internal/kobo"
 	"kobosync/internal/library"
+	"kobosync/internal/safe"
 	"kobosync/internal/syncer"
 )
 
@@ -511,7 +512,7 @@ func (m Model) handlePathKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.pathInput.CursorEnd()
 		m.pathHint = ""
 		if len(matches) > 1 {
-			m.pathHint = strings.Join(matches, "  ")
+			m.pathHint = safe.Text(strings.Join(matches, "  "))
 		}
 		return m, nil
 	case "enter":
@@ -629,7 +630,7 @@ func (m Model) finishSync(err error) (tea.Model, tea.Cmd) {
 // ---- list state ----
 
 func (m *Model) setStatus(s string, isErr bool) {
-	m.status, m.statusErr, m.statusAt = s, isErr, time.Now()
+	m.status, m.statusErr, m.statusAt = safe.Text(s), isErr, time.Now()
 }
 
 func (m *Model) rebuild() {

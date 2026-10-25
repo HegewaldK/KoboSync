@@ -207,6 +207,10 @@ func add(ctx context.Context, conv *kepub.Converter, dev *kobo.Device, koboDir s
 	rel = filepath.FromSlash(path.Join(koboDir, rel))
 	ext := TargetExt(e.Lib)
 	dst := filepath.Join(dev.Mount, rel+ext)
+	// kobo_dir comes from the config; never write outside the Kobo.
+	if r, err := filepath.Rel(dev.Mount, dst); err != nil || r == ".." || strings.HasPrefix(r, ".."+string(filepath.Separator)) {
+		return fmt.Errorf("target %s is outside the Kobo", dst)
+	}
 	for n := 2; ; n++ {
 		if _, err := os.Stat(dst); os.IsNotExist(err) {
 			break

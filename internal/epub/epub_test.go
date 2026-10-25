@@ -1,10 +1,16 @@
 package epub_test
 
 import (
+	"bytes"
+	"encoding/binary"
+	"hash/crc32"
+	"image"
 	"image/color"
+	"image/png"
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 
 	"kobosync/internal/epub"
@@ -71,5 +77,21 @@ func TestBroken(t *testing.T) {
 	os.WriteFile(p, []byte("not a zip"), 0o644)
 	if _, err := epub.Read(p); err == nil {
 		t.Error("expected an error")
+	}
+}
+
+// A cover that claims a huge size in its header is rejected before decoding.
+func TestCoverTooLarge(t *testing.T) {
+	var buf bytes.Buffer
+	png.Encode(&buf, image.NewRGBA(image.Rect(0, 0, 1, 1)))
+	data := buf.Bytes()
+	// IHDR data starts at byte 16: width and height, then the chunk CRC at 29.
+	binary.BigEndian.PutUint32(data[16:], 100000)
+	binary.BigEndian.PutUint32(data[20:], 100000)
+	binary.BigEndian.PutUint32(data[29:], crc32.ChecksumIEEE(data[12:29]))
+	p := filepath.Join(t.TempDir(), "cover.png")
+	os.WriteFile(p, data, 0o644)
+	if _, err := epub.CoverFile(p); err == nil || !strings.Contains(err.Error(), "too large") {
+		t.Errorf("expected a size error, got %v", err)
 	}
 }

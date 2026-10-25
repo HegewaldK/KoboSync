@@ -16,6 +16,8 @@ import (
 	"time"
 
 	_ "modernc.org/sqlite"
+
+	"kobosync/internal/safe"
 )
 
 // Device is a mounted Kobo.
@@ -108,7 +110,7 @@ func (d *Device) readVersion() {
 	}
 	parts := strings.Split(strings.TrimSpace(string(data)), ",")
 	if len(parts) >= 3 {
-		d.Firmware = parts[2]
+		d.Firmware = safe.Text(parts[2])
 	}
 }
 

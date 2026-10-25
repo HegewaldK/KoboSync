@@ -16,6 +16,7 @@ import (
 
 	"kobosync/internal/epub"
 	"kobosync/internal/pdf"
+	"kobosync/internal/safe"
 )
 
 // Book is one book on disk.
@@ -78,7 +79,7 @@ func (b *Book) Title() string {
 	}
 	name := filepath.Base(b.Path)
 	name = strings.TrimSuffix(name, filepath.Ext(name))
-	return strings.ReplaceAll(strings.TrimSuffix(name, ".kepub"), "_", " ")
+	return safe.Text(strings.ReplaceAll(strings.TrimSuffix(name, ".kepub"), "_", " "))
 }
 
 // Author shows the authors as "First Last", also when the book stores them
@@ -118,7 +119,7 @@ type cacheEntry struct {
 }
 
 // cacheVersion is bumped whenever the parser output changes.
-const cacheVersion = 3
+const cacheVersion = 4
 
 // OpenCache loads the cache file at path; a missing or stale file yields an empty cache.
 func OpenCache(path string) *Cache {
@@ -236,6 +237,7 @@ func Scan(root string, cache *Cache) ([]Book, error) {
 			if m, ok := cache.get(f.path, b.Size, b.ModTime); ok {
 				b.Meta = m
 			} else if m, err := readMeta(f.path); err == nil {
+				m = cleanMeta(m)
 				b.Meta = m
 				cache.put(f.path, b.Size, b.ModTime, m)
 			} else {
@@ -265,6 +267,7 @@ func calibreBook(root, dir, opf string, opfInfo fs.FileInfo, files []file, cache
 	if m, ok := cache.get(opf, opfInfo.Size(), opfInfo.ModTime()); ok {
 		b.Meta = m
 	} else if m, err := epub.ReadOPF(opf); err == nil {
+		m = cleanMeta(m)
 		b.Meta = m
 		cache.put(opf, opfInfo.Size(), opfInfo.ModTime(), m)
 	} else {
@@ -274,6 +277,20 @@ func calibreBook(root, dir, opf string, opfInfo fs.FileInfo, files []file, cache
 		b.CoverFile = cover
 	}
 	return b
+}
+
+// cleanMeta strips control characters from metadata, which comes from
+// untrusted files and ends up on the terminal.
+func cleanMeta(m epub.Metadata) epub.Metadata {
+	for _, f := range []*string{&m.Title, &m.Author, &m.Publisher, &m.Language, &m.ISBN,
+		&m.Identifier, &m.Series, &m.SeriesIndex, &m.Version} {
+		*f = safe.Text(*f)
+	}
+	m.Description = safe.Multiline(m.Description)
+	for i := range m.IDs {
+		m.IDs[i] = safe.Text(m.IDs[i])
+	}
+	return m
 }
 
 func readMeta(p string) (epub.Metadata, error) {

@@ -110,13 +110,7 @@ func Cover(p string, m Metadata) (image.Image, error) {
 		return nil, err
 	}
 	defer zr.Close()
-	f, err := zr.Open(m.Cover)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-	img, _, err := image.Decode(f)
-	return img, err
+	return decodeImage(func() (io.ReadCloser, error) { return zr.Open(m.Cover) })
 }
 
 // ReadOPF parses a standalone OPF file such as the metadata.opf Calibre keeps
@@ -138,8 +132,28 @@ func ReadOPF(p string) (Metadata, error) {
 
 // CoverFile decodes a cover image stored as a separate file (Calibre's cover.jpg).
 func CoverFile(p string) (image.Image, error) {
-	f, err := os.Open(p)
+	return decodeImage(func() (io.ReadCloser, error) { return os.Open(p) })
+}
+
+// maxPixels limits cover images; a crafted file can claim a huge size in its
+// header and make the decoder allocate gigabytes.
+const maxPixels = 40_000_000
+
+// decodeImage checks the image size from its header before decoding it.
+func decodeImage(open func() (io.ReadCloser, error)) (image.Image, error) {
+	f, err := open()
 	if err != nil {
+		return nil, err
+	}
+	cfg, _, err := image.DecodeConfig(f)
+	f.Close()
+	if err != nil {
+		return nil, err
+	}
+	if cfg.Width <= 0 || cfg.Height <= 0 || cfg.Width*cfg.Height > maxPixels {
+		return nil, fmt.Errorf("cover too large: %d×%d", cfg.Width, cfg.Height)
+	}
+	if f, err = open(); err != nil {
 		return nil, err
 	}
 	defer f.Close()
