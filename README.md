@@ -1,6 +1,11 @@
-# kobosync
+<h1 align="center">kobosync</h1>
 
-A small terminal app that syncs an EPUB and PDF library to a Kobo eReader.
+<p align="center">A lightweight terminal app to sync your EPUB and PDF library to a Kobo eReader.</p>
+
+<p align="center">
+  <img src="docs/screenshot.png" alt="kobosync showing a library with covers, sync status and reading progress" width="900">
+</p>
+
 EPUBs are converted to KEPUB on the way, using [kepubify](https://github.com/pgaskin/kepubify)
 as a library, so there is nothing else to install. PDFs are copied as they are.
 
@@ -12,7 +17,8 @@ as a library, so there is nothing else to install. PDFs are copied as they are.
 - Reads Calibre libraries: uses `metadata.opf` and `cover.jpg` and shows a
   book with several formats once (EPUB is preferred for the Kobo over PDF)
 - Shows title, author, series, publisher, language, ISBN, the format in the
-  library and on the Kobo (`EPUB › KEPUB`, `PDF › EPUB`) and the cover
+  library and on the Kobo, and the cover (via the Kitty graphics protocol,
+  e.g. in Ghostty or Kitty)
 - Reads reading progress from the Kobo database (read only)
 - Unmarking a book removes it from the Kobo on the next sync
 
