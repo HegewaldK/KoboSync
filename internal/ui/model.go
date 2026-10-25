@@ -78,7 +78,8 @@ type Model struct {
 	status    string
 	statusErr bool
 	statusAt  time.Time
-	ejected   bool // the Kobo vanished because we ejected it
+	ejected   bool   // the Kobo vanished because we ejected it
+	noMount   string // block device not to mount automatically (ejected or failed)
 
 	covers       map[string]coverResult
 	coverPending map[string]bool
@@ -96,6 +97,9 @@ type (
 	detectMsg struct {
 		dev         *kobo.Device
 		free, total uint64
+		unmounted   string // block device of a plugged in Kobo that is not mounted
+		mounted     bool   // we just mounted it
+		mountErr    error
 	}
 	libLoadedMsg struct {
 		root  string
@@ -115,7 +119,10 @@ type (
 	}
 	syncEventMsg syncer.Event
 	syncDoneMsg  struct{ err error }
-	ejectMsg     struct{ err error }
+	ejectMsg     struct {
+		dev string
+		err error
+	}
 )
 
 // New creates the UI model.
@@ -170,10 +177,21 @@ func tick() tea.Cmd {
 }
 
 func (m Model) detect() tea.Cmd {
-	mount := m.cfg.Mount
+	mount, skip := m.cfg.Mount, m.noMount
 	return func() tea.Msg {
 		d := kobo.Detect(mount)
 		msg := detectMsg{dev: d}
+		if d == nil {
+			// Plugged in but not mounted (no desktop automount): mount it.
+			msg.unmounted = kobo.FindUnmounted()
+			if msg.unmounted != "" && msg.unmounted != skip {
+				if msg.mountErr = kobo.Mount(msg.unmounted); msg.mountErr == nil {
+					msg.mounted = true
+					d = kobo.Detect(mount)
+					msg.dev = d
+				}
+			}
+		}
 		if d != nil {
 			msg.free, msg.total = d.Space()
 		}
@@ -291,6 +309,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.ejected = true
+		m.noMount = msg.dev // in case power off failed: do not mount it right back
 		m.setStatus(m.loc.T("msg.ejected"), false)
 		return m, m.detect()
 
@@ -315,6 +334,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m Model) handleDetect(msg detectMsg) (tea.Model, tea.Cmd) {
 	m.free, m.total = msg.free, msg.total
 	switch {
+	case msg.mountErr != nil:
+		m.noMount = msg.unmounted // try again only after it was unplugged
+		m.setStatus(m.loc.F("msg.mount_failed", msg.mountErr), true)
+	case msg.dev == nil && msg.unmounted == "":
+		m.noMount = "" // unplugged: mount it again next time
+	}
+	switch {
 	case msg.dev == nil && m.dev != nil:
 		m.dev, m.devBooks, m.manifest, m.progress = nil, nil, nil, nil
 		m.devLoading = false
@@ -330,7 +356,11 @@ func (m Model) handleDetect(msg detectMsg) (tea.Model, tea.Cmd) {
 		m.dev = msg.dev
 		m.devLoading = true
 		m.ejected = false
-		m.setStatus(m.loc.F("msg.connected", msg.dev.Mount), false)
+		if msg.mounted {
+			m.setStatus(m.loc.F("msg.mounted", msg.dev.Mount), false)
+		} else {
+			m.setStatus(m.loc.F("msg.connected", msg.dev.Mount), false)
+		}
 		return m, loadDevice(m.dev, m.cache)
 	}
 	return m, nil
@@ -480,7 +510,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		d := m.dev
 		m.setStatus(m.loc.T("msg.ejecting"), false)
-		return m, func() tea.Msg { return ejectMsg{err: d.Eject()} }
+		return m, func() tea.Msg { return ejectMsg{dev: d.Dev, err: d.Eject()} }
 	}
 	return m, m.ensureCover()
 }

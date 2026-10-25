@@ -65,6 +65,44 @@ func Detect(extra string) *Device {
 	return nil
 }
 
+// Label is the volume label every Kobo uses for its storage.
+const Label = "KOBOeReader"
+
+// byLabel is where udev links block devices by their volume label.
+var byLabel = "/dev/disk/by-label"
+
+// FindUnmounted returns the block device of a Kobo that is plugged in but not
+// mounted, or "" if there is none.
+func FindUnmounted() string {
+	dev, err := filepath.EvalSymlinks(filepath.Join(byLabel, Label))
+	if err != nil {
+		return ""
+	}
+	for _, d := range readMounts() {
+		if d == dev {
+			return ""
+		}
+	}
+	return dev
+}
+
+// mountCmd runs udisksctl; tests replace it.
+var mountCmd = func(dev string) ([]byte, error) {
+	return exec.Command("udisksctl", "mount", "-b", dev, "--no-user-interaction").CombinedOutput()
+}
+
+// Mount mounts the Kobo's block device through udisks, as file managers and
+// Calibre do: no root needed, it ends up under /run/media/$USER.
+func Mount(dev string) error {
+	if !strings.HasPrefix(dev, "/dev/") {
+		return fmt.Errorf("not a block device: %s", dev)
+	}
+	if out, err := mountCmd(dev); err != nil {
+		return fmt.Errorf("mount %s: %s", dev, strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
 // readMounts maps mount points to their devices from /proc/self/mounts.
 func readMounts() map[string]string {
 	m := map[string]string{}

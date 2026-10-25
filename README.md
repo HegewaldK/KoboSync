@@ -4,7 +4,8 @@ A small terminal app that syncs an EPUB and PDF library to a Kobo eReader.
 EPUBs are converted to KEPUB on the way, using [kepubify](https://github.com/pgaskin/kepubify)
 as a library, so there is nothing else to install. PDFs are copied as they are.
 
-- Detects the Kobo as soon as it is mounted (`/run/media/$USER/…`)
+- Detects the Kobo as soon as it is plugged in and mounts it through udisks
+  if nothing else does (like Calibre or a desktop automounter would)
 - Matches library and Kobo by metadata (ISBN, identifiers such as Calibre's
   UUID, title + author), so renamed files and books Calibre sent (even PDFs it
   converted to EPUB) are recognised

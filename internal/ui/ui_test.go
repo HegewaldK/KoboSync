@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"errors"
 	"image/color"
 	"os"
 	"path/filepath"
@@ -192,4 +193,31 @@ func TestScreens(t *testing.T) {
 func lastLine(s string) string {
 	l := strings.Split(s, "\n")
 	return l[len(l)-2]
+}
+
+// After an eject or a failed mount the same device is not mounted again
+// until it has been unplugged.
+func TestNoRemountLoop(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	locales, _ := i18n.Load("")
+	cfg := config.Default()
+	cfg.Library = t.TempDir()
+	var m tea.Model = New(cfg, library.OpenCache(""), locales)
+
+	m, _ = m.Update(detectMsg{unmounted: "/dev/sdz", mountErr: errors.New("Not authorized")})
+	if m.(Model).noMount != "/dev/sdz" || !strings.Contains(m.(Model).status, "Not authorized") {
+		t.Errorf("failed mount: noMount %q, status %q", m.(Model).noMount, m.(Model).status)
+	}
+	m, _ = m.Update(detectMsg{unmounted: "/dev/sdz"}) // still plugged in, skipped
+	if m.(Model).noMount != "/dev/sdz" {
+		t.Error("skip was reset while the Kobo is still plugged in")
+	}
+	m, _ = m.Update(detectMsg{}) // unplugged
+	if m.(Model).noMount != "" {
+		t.Error("skip not reset after unplugging")
+	}
+	m, _ = m.Update(ejectMsg{dev: "/dev/sdz"})
+	if m.(Model).noMount != "/dev/sdz" {
+		t.Error("ejected Kobo would be mounted right back")
+	}
 }
